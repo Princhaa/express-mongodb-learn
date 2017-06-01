@@ -59,7 +59,6 @@ apiRoutes.post('/register', function (req, res) {
     })
 })
 
-//user info will be stored in the req.user
 apiRoutes.post('/authenticate', function (req, res) {
     User.findOne({
         username: req.body.username
@@ -87,6 +86,7 @@ apiRoutes.post('/authenticate', function (req, res) {
     });
 });
 
+//user info will be stored in the req.user
 apiRoutes.use(function (req, res, next) {
     var token = req.body.token || req.query.token || req.header('Authorization');
     if (token) {
@@ -131,6 +131,15 @@ apiRoutes.get('/post-list', function(req, res){
     })
 
     ;
+})
+
+apiRoutes.post('/post-detail', function(req, res){
+    Post.findOne({
+        _id: req.body._id
+    }, function (err, post) {
+        if (err) throw err;
+        res.json(post);
+    })
 })
 
 apiRoutes.get('/', function (req, res) {
