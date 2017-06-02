@@ -11,6 +11,7 @@ var config = require('./config');
 var User = require('./app/models/user');
 var Post = require('./app/models/posts');
 var Comment = require('./app/models/comment');
+var Message = require('./app/models/message');
 
 var port = process.env.PORT || 8080;
 mongoose.connect(config.database);
@@ -19,6 +20,18 @@ app.set('superSecret', config.secret);
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 app.use(morgan('dev'));
+
+app.use(function (req, res, next) {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+
+    if (req.method === 'OPTIONS') {
+        res.header("Access-Control-Allow-Methods", "PUT, POST, DELETE");
+        return res.status(200).json({});
+    }
+
+    next();
+});
 
 app.get('/setup', function (req, res) {
     //create a sample user
@@ -42,6 +55,19 @@ apiRoutes.get('/users', function (req, res) {
     });
 });
 
+apiRoutes.post('/check-username', function (req, res) {
+    User.findOne({
+        username: req.body.username
+    }, function (err, user) {
+        console.log(user);
+        if (user) {
+            res.json({ status: 'unavailable' })
+        } else {
+            res.json({ status: 'available' })
+        }
+    })
+})
+
 apiRoutes.post('/register', function (req, res) {
     var newUser = new User({
         username: req.body.username,
@@ -51,6 +77,7 @@ apiRoutes.post('/register', function (req, res) {
         lastname: req.body.lastname,
         email: req.body.email
     });
+    console.log(req.body);
 
     newUser.save(function (err) {
         if (err) throw err;
@@ -107,7 +134,7 @@ apiRoutes.use(function (req, res, next) {
     }
 })
 
-apiRoutes.post('/new-post', function(req, res) {
+apiRoutes.post('/new-post', function (req, res) {
     var post = new Post({
         _creator: req.body.id,
         title: req.body.title,
@@ -117,24 +144,22 @@ apiRoutes.post('/new-post', function(req, res) {
         sold: false
     });
 
-    post.save(function(err) {
+    post.save(function (err) {
         if (err) throw err;
         console.log('Post saved successfully');
         res.json({ success: true })
     })
 })
 
-apiRoutes.get('/post-list', function(req, res){
+apiRoutes.get('/post-list', function (req, res) {
     Post.find({})
-    .populate('_creator').exec(function (err, post) {
-        if (err) throw err;
-        return res.json(post);
-    })
-
-    ;
+        .populate('_creator').exec(function (err, post) {
+            if (err) throw err;
+            return res.json(post);
+        });
 })
 
-apiRoutes.post('/post-detail', function(req, res){
+apiRoutes.post('/post-detail', function (req, res) {
     Post.findOne({
         _id: req.body._id
     }, function (err, post) {
@@ -143,10 +168,10 @@ apiRoutes.post('/post-detail', function(req, res){
     })
 })
 
-apiRoutes.post('/post-new-comment', function(req, res) {
+apiRoutes.post('/post-new-comment', function (req, res) {
     Post.findOne({
         _id: req.body._id
-    }, function(err, post) {
+    }, function (err, post) {
         var comment = new Comment({
             content: req.body.content,
             _inPost: post._id,
@@ -154,7 +179,7 @@ apiRoutes.post('/post-new-comment', function(req, res) {
         });
 
         comment.save(function (err) {
-            if(err) throw err;
+            if (err) throw err;
 
             console.log('Comment saved successfully!');
             res.json({ success: true })
@@ -162,16 +187,39 @@ apiRoutes.post('/post-new-comment', function(req, res) {
     })
 })
 
-apiRoutes.post('/get-post-comments', function(req, res) {
+apiRoutes.post('/get-post-comments', function (req, res) {
     Post.findOne({
         _id: req.body._id
-    },function(err, post) {
+    }, function (err, post) {
         Comment.find({
             _inPost: post._id
-        }, function(err, comments) {
+        }, function (err, comments) {
             if (err) throw err;
             res.json(comments);
         })
+    })
+})
+
+apiRoutes.post('/new-message', function (req, res) {
+    var message = new Message({
+        _sender: req.user._id,
+        _receiver: req.body._receiver,
+        message: req.body.message
+    });
+
+    message.save(function (err) {
+        if (err) throw err;
+
+        console.log('Message saved successfully!');
+        res.json({ success: true })
+    })
+})
+
+apiRoutes.get('/get-messages', function (req, res) {
+    Message.find({
+        _receiver: req.user._id
+    }).populate('_sender').exec(function (err, messages) {
+        res.json(messages);
     })
 })
 
