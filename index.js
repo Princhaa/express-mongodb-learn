@@ -10,6 +10,7 @@ var apiRoutes = express.Router();
 var config = require('./config');
 var User = require('./app/models/user');
 var Post = require('./app/models/posts');
+var Comment = require('./app/models/comment');
 
 var port = process.env.PORT || 8080;
 mongoose.connect(config.database);
@@ -139,6 +140,38 @@ apiRoutes.post('/post-detail', function(req, res){
     }, function (err, post) {
         if (err) throw err;
         res.json(post);
+    })
+})
+
+apiRoutes.post('/post-new-comment', function(req, res) {
+    Post.findOne({
+        _id: req.body._id
+    }, function(err, post) {
+        var comment = new Comment({
+            content: req.body.content,
+            _inPost: post._id,
+            _creator: req.user._id
+        });
+
+        comment.save(function (err) {
+            if(err) throw err;
+
+            console.log('Comment saved successfully!');
+            res.json({ success: true })
+        })
+    })
+})
+
+apiRoutes.post('/get-post-comments', function(req, res) {
+    Post.findOne({
+        _id: req.body._id
+    },function(err, post) {
+        Comment.find({
+            _inPost: post._id
+        }, function(err, comments) {
+            if (err) throw err;
+            res.json(comments);
+        })
     })
 })
 
