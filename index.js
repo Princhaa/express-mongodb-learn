@@ -48,8 +48,16 @@ app.get('/setup', function (req, res) {
     });
 });
 
+apiRoutes.get('/post-list', function (req, res) {
+    Post.find({})
+        .populate('_creator').exec(function (err, post) {
+            if (err) throw err;
+            return res.json(post);
+        });
+})
+
 apiRoutes.get('/users', function (req, res) {
-    User.find({}, function (err, users) {
+    User.findOneAndRemove({ username: 'test5' }, function (err, users) {
         res.json(users);
     });
 });
@@ -148,14 +156,6 @@ apiRoutes.post('/new-post', function (req, res) {
         console.log('Post saved successfully');
         res.json({ success: true })
     })
-})
-
-apiRoutes.get('/post-list', function (req, res) {
-    Post.find({})
-        .populate('_creator').exec(function (err, post) {
-            if (err) throw err;
-            return res.json(post);
-        });
 })
 
 apiRoutes.post('/post-detail', function (req, res) {
