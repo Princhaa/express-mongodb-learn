@@ -30,6 +30,10 @@ var UserSchema = new Schema({
     email: {
         type: String,
         required: true
+    },
+    picture: {
+        type: String,
+        default: '/nopicture.gif'
     }
 });
 
@@ -38,6 +42,24 @@ UserSchema.pre('save', function(next) {
     if (!user.isModified('password')) return next();
 
     //generate a salt
+    bcrypt.genSalt(SALT_WORK_FACTOR, function(err, salt) {
+        if (err) return next(err);
+        
+        //hash the password
+        bcrypt.hash(user.password, salt, function(err, hash) {
+            if (err) return next(err);
+            user.password = hash;
+            next();
+        });
+    });
+});
+
+UserSchema.pre('update', function(next) {
+    var user = this;
+    if (!user.isModified('password')) return next();
+    console.log('update');
+
+    //generate salt
     bcrypt.genSalt(SALT_WORK_FACTOR, function(err, salt) {
         if (err) return next(err);
         

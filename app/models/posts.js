@@ -37,6 +37,11 @@ var PostsSchema = new Schema({
         required: true
     },
 
+    image: {
+        type: String,
+        default: '/nopicture.gif'
+    }
+
 })
 
 module.exports = mongoose.model('Post', PostsSchema);

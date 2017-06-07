@@ -3,6 +3,10 @@ var bodyParser = require('body-parser');
 var morgan = require('morgan');
 var mongoose = require('mongoose');
 var jwt = require('jsonwebtoken');
+var bcrypt = require('bcrypt');
+var fs = require('fs');
+var multer = require('multer');
+
 var app = express();
 var apiRoutes = express.Router();
 
@@ -13,6 +17,19 @@ var Comment = require('./app/models/comment');
 var Message = require('./app/models/message');
 
 var port = process.env.PORT || 8080;
+const SALT_WORK_FACTOR = 10;
+
+var storage = multer.diskStorage({
+    destination: function(req, file, cb) {
+        cb(null, 'img/user_picture');
+    },
+    filename: function(req, file, cb) {
+        cb(null, req.user.username+'.jpg');
+    }
+})
+
+var upload = multer({ storage: storage })
+
 mongoose.connect(config.database);
 app.set('superSecret', config.secret);
 
@@ -22,7 +39,7 @@ app.use(morgan('dev'));
 
 app.use(function (req, res, next) {
     res.header("Access-Control-Allow-Origin", "*");
-    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
 
     if (req.method === 'OPTIONS') {
         res.header("Access-Control-Allow-Methods", "PUT, POST, DELETE");
@@ -31,13 +48,17 @@ app.use(function (req, res, next) {
 
     next();
 });
+app.use('/static', express.static('img'));
 
 app.get('/setup', function (req, res) {
     //create a sample user
     var shuka = new User({
-        username: 'shukahuu',
+        username: 'shukashuu',
         password: 'shukashuu',
-        admin: true
+        admin: true,
+        firstname: 'Saitou',
+        lastname: 'Shuka',
+        email: 'shukashuu@gmail.com'
     });
 
     shuka.save(function (err) {
@@ -48,6 +69,16 @@ app.get('/setup', function (req, res) {
     });
 });
 
+apiRoutes.post('/change', function (req, res) {
+    Post.findOneAndUpdate({ _id: '592cd7ac068496300dcfe3e5' }, { 
+        $set: { 
+            price: 400000 
+        } 
+    }, function (err, post) {
+        res.json(post);
+    })
+})
+
 apiRoutes.get('/post-list', function (req, res) {
     Post.find({})
         .populate('_creator').exec(function (err, post) {
@@ -56,8 +87,14 @@ apiRoutes.get('/post-list', function (req, res) {
         });
 })
 
+apiRoutes.get('/delete-post', function (req, res) {
+    Post.findOneAndRemove({ _id: '592cf2b24262133313d562df' }, function (err, post) {
+        res.json(post);
+    })
+})
+
 apiRoutes.get('/users', function (req, res) {
-    User.findOneAndRemove({ username: 'test5' }, function (err, users) {
+    User.find({}, function (err, users) {
         res.json(users);
     });
 });
@@ -94,6 +131,14 @@ apiRoutes.post('/register', function (req, res) {
     })
 })
 
+apiRoutes.post('/post-detail', function (req, res) {
+    Post.findOne({
+        _id: req.body._id
+    }).populate('_creator').exec(function (err, post) {
+        res.json(post);
+    })
+})
+
 apiRoutes.post('/authenticate', function (req, res) {
     User.findOne({
         username: req.body.username
@@ -111,7 +156,8 @@ apiRoutes.post('/authenticate', function (req, res) {
                     res.json({
                         success: true,
                         message: 'Enjoy your token!',
-                        token: token
+                        token: token,
+                        id: user._id
                     });
                 } else {
                     res.json({ success: false, message: 'Authentication failed. Wrong password' });
@@ -141,9 +187,51 @@ apiRoutes.use(function (req, res, next) {
     }
 })
 
+apiRoutes.get('/my-profile', function (req, res) {
+    res.json(req.user);
+})
+
+apiRoutes.post('/update-profile', function (req, res) {
+    if (req.body.password) {
+        //generate salt
+        bcrypt.genSalt(SALT_WORK_FACTOR, function (err, salt) {
+            if (err) return next(err);
+            console.log('gen salt');
+            //hash the password
+            bcrypt.hash(req.body.password, salt, function (err, hash) {
+                if (err) return next(err);
+                req.body.password = hash;
+                console.log(req.body.password);
+                User.findOneAndUpdate({ _id: req.user._id }, {
+                    $set: {
+                        firstname: req.body.firstname,
+                        lastname: req.body.lastname,
+                        email: req.body.email,
+                        password: req.body.password,
+                        username: req.body.username
+                    }
+                }, function (err, user) {
+                    res.json(user);
+                });
+            });
+        });
+    } else {
+        User.findOneAndUpdate({ _id: req.user._id }, {
+            $set: {
+                firstname: req.body.firstname,
+                lastname: req.body.lastname,
+                email: req.body.email,
+                username: req.body.username
+            }
+        }, function (err, user) {
+            res.json(user);
+        });
+    }
+})
+
 apiRoutes.post('/new-post', function (req, res) {
     var post = new Post({
-        _creator: req.body.id,
+        _creator: req.user._id,
         title: req.body.title,
         description: req.body.description,
         category: req.body.category,
@@ -155,15 +243,6 @@ apiRoutes.post('/new-post', function (req, res) {
         if (err) throw err;
         console.log('Post saved successfully');
         res.json({ success: true })
-    })
-})
-
-apiRoutes.post('/post-detail', function (req, res) {
-    Post.findOne({
-        _id: req.body._id
-    }, function (err, post) {
-        if (err) throw err;
-        res.json(post);
     })
 })
 
@@ -219,6 +298,25 @@ apiRoutes.get('/get-messages', function (req, res) {
         _receiver: req.user._id
     }).populate('_sender').exec(function (err, messages) {
         res.json(messages);
+    })
+})
+
+apiRoutes.post('/change-profile-picture', upload.single('avatar'), function (req, res) {
+    console.log(req.user);
+    User.findOneAndUpdate({ username: req.user.username }, {
+        $set: {
+            picture: `/img/${req.user.username}.jpg`
+        }
+    }, function (err, user) {
+        if (err) throw err;
+        res.json(user);
+    })
+})
+
+apiRoutes.post('/delete-user', function (req, res) {
+    User.findOneAndRemove({ _id: req.body.id }, function(err, user) {
+        if (err) throw err;
+        res.json({ success: true });
     })
 })
 
