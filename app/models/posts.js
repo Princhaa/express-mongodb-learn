@@ -37,6 +37,11 @@ var PostsSchema = new Schema({
         required: true
     },
 
+    approved: {
+        type: Boolean,
+        required: true
+    },
+
     image: {
         type: String,
         default: '/nopicture.gif'

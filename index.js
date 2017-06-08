@@ -28,6 +28,16 @@ var storage = multer.diskStorage({
     }
 })
 
+var postStorage = multer.diskStorage({
+    destination: function(req, file, cb) {
+        cb(null, 'img/post_picture');
+    },
+    filename: function(req, file, cb) {
+        cb(null, req.body.postId+'.jpg');
+    }
+})
+
+var uploadPost = multer({ storage: postStorage });
 var upload = multer({ storage: storage })
 
 mongoose.connect(config.database);
@@ -87,8 +97,16 @@ apiRoutes.get('/post-list', function (req, res) {
         });
 })
 
+apiRoutes.get('/home-post-list', function(req, res) {
+    Post.find({ approved: true })
+    .populate('_creator').exec(function (err, post) {
+        if (err) throw err;
+        return res.json(post)
+    })
+})
+
 apiRoutes.get('/delete-post', function (req, res) {
-    Post.findOneAndRemove({ _id: '592cf2b24262133313d562df' }, function (err, post) {
+    Post.findOneAndRemove({ _id: '59381ef10f0835162c7aa700' }, function (err, post) {
         res.json(post);
     })
 })
@@ -98,6 +116,18 @@ apiRoutes.get('/users', function (req, res) {
         res.json(users);
     });
 });
+
+apiRoutes.get('/messages-list', function (req, res) {
+    Message.find({}, function(err, messages) {
+        res.json(messages)
+    })
+})
+
+apiRoutes.get('/delete-message', function(req, res) {
+    Message.findOneAndRemove({ _id: '59387890e032e402caa46017' }, function (err, message) {
+        res.json(message);
+    })
+})
 
 apiRoutes.post('/check-username', function (req, res) {
     User.findOne({
@@ -136,6 +166,18 @@ apiRoutes.post('/post-detail', function (req, res) {
         _id: req.body._id
     }).populate('_creator').exec(function (err, post) {
         res.json(post);
+    })
+})
+
+apiRoutes.post('/get-post-comments', function (req, res) {
+    Post.findOne({
+        _id: req.body._id
+    }, function (err, post) {
+        Comment.find({
+            _inPost: post._id
+        }).populate('_creator').exec(function (err, comments) {
+            res.json(comments)
+        })
     })
 })
 
@@ -236,12 +278,25 @@ apiRoutes.post('/new-post', function (req, res) {
         description: req.body.description,
         category: req.body.category,
         price: req.body.price,
-        sold: false
+        sold: false,
+        approved: false
     });
 
     post.save(function (err) {
         if (err) throw err;
         console.log('Post saved successfully');
+        res.json({ success: true, postId: post._id })
+    })
+})
+
+apiRoutes.post('/post-picture', uploadPost.single('picture'), function (req, res) {
+    console.log(req.body);
+    Post.findOneAndUpdate({ _id: req.body.postId }, {
+        $set: {
+            image: `/post_picture/${req.body.postId}.jpg`
+        }
+    }, function(err, post) {
+        if (err) throw err;
         res.json({ success: true })
     })
 })
@@ -261,19 +316,6 @@ apiRoutes.post('/post-new-comment', function (req, res) {
 
             console.log('Comment saved successfully!');
             res.json({ success: true })
-        })
-    })
-})
-
-apiRoutes.post('/get-post-comments', function (req, res) {
-    Post.findOne({
-        _id: req.body._id
-    }, function (err, post) {
-        Comment.find({
-            _inPost: post._id
-        }, function (err, comments) {
-            if (err) throw err;
-            res.json(comments);
         })
     })
 })
@@ -305,11 +347,18 @@ apiRoutes.post('/change-profile-picture', upload.single('avatar'), function (req
     console.log(req.user);
     User.findOneAndUpdate({ username: req.user.username }, {
         $set: {
-            picture: `/img/${req.user.username}.jpg`
+            picture: `/user_picture/${req.user.username}.jpg`
         }
     }, function (err, user) {
         if (err) throw err;
         res.json(user);
+    })
+})
+
+apiRoutes.get('/my-post', function(req, res) {
+    Post.find({ _creator: req.user._id }, function (err, posts) {
+        if (err) throw err;
+        res.json(posts);
     })
 })
 
@@ -320,6 +369,25 @@ apiRoutes.post('/delete-user', function (req, res) {
     })
 })
 
+apiRoutes.get('/approved-post-list', function(req, res) {
+    Post.find({ approved: false })
+    .populate('_creator').exec(function (err, post) {
+        if (err) throw err;
+        return res.json(post)
+    })
+})
+
+apiRoutes.post('/approve-post', function(req, res) {
+    console.log(req.body);
+    Post.findOneAndUpdate({ _id: req.body.postId }, {
+        $set: {
+            approved: true
+        }
+    }, function (err, post) {
+        res.json({ success: true, post: post })
+    })
+})
+
 apiRoutes.get('/', function (req, res) {
     res.json({ message: 'Welcome to the coolest API on earth!' });
 });
@@ -327,6 +395,7 @@ apiRoutes.get('/', function (req, res) {
 app.get('/', function (req, res) {
     res.send('Hello! The API is at http://localhost:' + port + '/api');
 });
+
 
 app.use('/api', apiRoutes);
 app.listen(port);
